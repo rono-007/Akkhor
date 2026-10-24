@@ -22,10 +22,15 @@
   //   }
   // ],
 
-  // Environment variables
+  // Environment variables (securely kept in Worker backend)
   "vars": {
     "ENVIRONMENT": "production",
-    "ALLOWED_ORIGINS": "https://akshar.pages.dev"
+    "ALLOWED_ORIGINS": "*",
+    "S3_ENDPOINT": "https://br-small-cloud-b4ofouo5.storage.c-6.us-east-2.aws.neon.tech",
+    "S3_ACCESS_KEY_ID": "nak_live_3fe1575ecef44d0884d266f8aae28ff4",
+    "S3_SECRET_ACCESS_KEY": "nsk_live_8bf4236b3fc37eb8d2170f2908656d860ab141e1586b5c4fad930ea948ece0c0",
+    "S3_REGION": "us-east-2",
+    "S3_BUCKET": "akshar-fonts"
   },
 
   // Dev environment overrides
