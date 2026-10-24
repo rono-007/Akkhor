@@ -1,13 +1,21 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { cache } from 'hono/cache';
 import type { Env } from './types';
 import { fontsRouter } from './routes/fonts';
 import { downloadRouter } from './routes/download';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// CORS middleware — allow the frontend origin
+// 1. Security Headers middleware
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('X-XSS-Protection', '1; mode=block');
+});
+
+// 2. CORS middleware — allow the frontend origin
 app.use('/api/*', async (c, next) => {
   const allowedOrigins = c.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || ['*'];
   const origin = c.req.header('Origin') || '';
@@ -16,33 +24,33 @@ app.use('/api/*', async (c, next) => {
   return cors({
     origin: isAllowed ? origin : allowedOrigins[0],
     allowMethods: ['GET', 'OPTIONS'],
-    allowHeaders: ['Content-Type'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-License-Token'],
     maxAge: 86400,
   })(c, next);
 });
 
-// Health check
+// 3. Health check
 app.get('/api/health', (c) => {
   return c.json({
     status: 'ok',
     service: 'akshar-api',
-    environment: c.env.ENVIRONMENT,
+    environment: c.env.ENVIRONMENT || 'production',
     timestamp: new Date().toISOString()
   });
 });
 
-// Mount font routes
+// 4. Mount font routes
 app.route('/api', fontsRouter);
 app.route('/api', downloadRouter);
 
-// 404 fallback for API routes
+// 5. 404 fallback for API routes
 app.notFound((c) => {
-  return c.json({ error: 'Not found', path: c.req.path }, 404);
+  return c.json({ error: 'Endpoint not found', path: c.req.path }, 404);
 });
 
-// Error handler
+// 6. Global error handler (prevents leaking stack traces or internal details)
 app.onError((err, c) => {
-  console.error(`[akshar-api] Error: ${err.message}`, err.stack);
+  console.error(`[akshar-api] Unhandled error at ${c.req.path}:`, err?.message);
   return c.json({ error: 'Internal server error' }, 500);
 });
 

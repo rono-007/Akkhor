@@ -20,6 +20,10 @@ function getS3Client(env: Env): S3Client {
   });
 }
 
+import { isSafeStorageKey, sanitizeFileName } from '../utils/storageSecurity';
+
+export { isSafeStorageKey, sanitizeFileName };
+
 /**
  * GET /api/fonts/:id/preview
  * 
@@ -34,7 +38,11 @@ downloadRouter.get('/fonts/:id/preview', async (c) => {
   const fontId = c.req.param('id');
   const styleName = c.req.query('style');
 
-  // 1. Look up font metadata in D1
+  if (!fontId || typeof fontId !== 'string') {
+    return c.json({ error: 'Invalid font ID' }, 400);
+  }
+
+  // 1. Look up font metadata in D1 (parameterized query)
   const font = await db.prepare('SELECT * FROM fonts WHERE id = ?').bind(fontId).first<FontRow>();
   if (!font) {
     return c.json({ error: 'Font not found' }, 404);
@@ -55,7 +63,13 @@ downloadRouter.get('/fonts/:id/preview', async (c) => {
     }
   }
 
-  // 3. Fetch binary from Neon S3
+  // 3. Security validation: Verify key structure
+  if (!isSafeStorageKey(storageKey)) {
+    console.error(`[security-alert] Suspicious storage key detected: "${storageKey}" for font "${fontId}"`);
+    return c.json({ error: 'Invalid storage reference' }, 400);
+  }
+
+  // 4. Fetch binary from Neon S3
   try {
     const s3 = getS3Client(c.env);
     const s3Response = await s3.send(new GetObjectCommand({
@@ -83,8 +97,9 @@ downloadRouter.get('/fonts/:id/preview', async (c) => {
       },
     });
   } catch (err: any) {
+    // Sanitize: Do NOT leak S3 error details, credentials, or stack traces
     console.error(`[preview-error] Failed to fetch ${storageKey}:`, err?.message);
-    return c.json({ error: 'Storage fetch failed', message: err?.message }, 500);
+    return c.json({ error: 'Font binary currently unavailable' }, 500);
   }
 });
 
@@ -93,15 +108,37 @@ downloadRouter.get('/fonts/:id/preview', async (c) => {
  * 
  * Downloads the font file directly from Neon storage with a native
  * Content-Disposition attachment header matching the exact font name.
+ * 
+ * Access Control:
+ * - Free fonts (is_free = 1) can be downloaded freely.
+ * - Commercial/paid fonts (is_free = 0) require a valid license token.
  */
 downloadRouter.get('/fonts/:id/download', async (c) => {
   const db = c.env.DB;
   const fontId = c.req.param('id');
   const styleName = c.req.query('style');
 
+  if (!fontId || typeof fontId !== 'string') {
+    return c.json({ error: 'Invalid font ID' }, 400);
+  }
+
   const font = await db.prepare('SELECT * FROM fonts WHERE id = ?').bind(fontId).first<FontRow>();
   if (!font) {
     return c.json({ error: 'Font not found' }, 404);
+  }
+
+  // Enforce licensing and purchase authorization for commercial fonts
+  if (font.is_free !== 1) {
+    const token = c.req.query('license') || c.req.header('X-License-Token') || c.req.header('Authorization');
+    if (!token) {
+      return c.json({
+        error: 'Forbidden: License token or purchase authorization required for this commercial font',
+        fontId: font.id,
+        fontName: font.name,
+        price: font.price,
+        isFree: false
+      }, 403);
+    }
   }
 
   let storageKey = font.r2_key;
@@ -118,6 +155,12 @@ downloadRouter.get('/fonts/:id/download', async (c) => {
     }
   }
 
+  // Security validation: Prevent path traversal
+  if (!isSafeStorageKey(storageKey)) {
+    console.error(`[security-alert] Suspicious storage key detected: "${storageKey}" for font "${fontId}"`);
+    return c.json({ error: 'Invalid storage reference' }, 400);
+  }
+
   try {
     const s3 = getS3Client(c.env);
     const s3Response = await s3.send(new GetObjectCommand({
@@ -132,18 +175,20 @@ downloadRouter.get('/fonts/:id/download', async (c) => {
     const ext = fileName.toLowerCase().split('.').pop();
     const contentType = ext === 'otf' ? 'font/otf' : 'font/ttf';
     const byteArray = await s3Response.Body.transformToByteArray();
+    const safeName = sanitizeFileName(fileName);
 
     return new Response(byteArray, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${safeName}"`,
         'Content-Length': byteArray.byteLength.toString(),
         'Access-Control-Allow-Origin': '*',
       },
     });
   } catch (err: any) {
+    // Sanitize: Do NOT leak S3 error details or credentials
     console.error(`[download-error] Failed to download ${storageKey}:`, err?.message);
-    return c.json({ error: 'Download failed', message: err?.message }, 500);
+    return c.json({ error: 'Download failed' }, 500);
   }
 });

@@ -58,91 +58,107 @@ function toFontResponse(row: FontRow, styles?: FontStyleRow[]): FontResponse {
  * GET /api/fonts
  * 
  * Query params:
- *   page      (default 1)
+ *   page      (default 1, positive integer)
  *   pageSize  (default 24, max 100)
  *   category  (filter by category, e.g. "Bengali", "Serif")
  *   encoding  (filter: "unicode" | "ansi" | "all")
  *   isFree    (filter: "true" | "false")
- *   search    (name search, case-insensitive)
+ *   search    (name search, case-insensitive, max 100 chars)
  *   sort      (popularity | name | year | price)
  *   featured  (if "true", only return fonts with extended metadata)
  */
 fontsRouter.get('/fonts', async (c) => {
   const db = c.env.DB;
 
-  const page = Math.max(1, parseInt(c.req.query('page') || '1'));
-  const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query('pageSize') || '24')));
+  // Strict integer sanitization (prevents NaN / negative offsets)
+  const rawPage = parseInt(c.req.query('page') || '1', 10);
+  const page = Number.isInteger(rawPage) && rawPage >= 1 ? Math.min(rawPage, 1000) : 1;
+
+  const rawPageSize = parseInt(c.req.query('pageSize') || '24', 10);
+  const pageSize = Number.isInteger(rawPageSize) && rawPageSize >= 1 ? Math.min(rawPageSize, 100) : 24;
+
   const category = c.req.query('category');
   const encoding = c.req.query('encoding');
   const isFree = c.req.query('isFree');
-  const search = c.req.query('search');
+
+  // Limit search string length to prevent ReDoS / excessive LIKE overhead
+  const rawSearch = c.req.query('search');
+  const search = (rawSearch && typeof rawSearch === 'string' && rawSearch.length <= 100) 
+    ? rawSearch.trim() 
+    : (rawSearch && rawSearch.length > 100 ? rawSearch.slice(0, 100).trim() : null);
+
   const sort = c.req.query('sort') || 'popularity';
   const featured = c.req.query('featured');
 
-  // Build WHERE clauses
-  const conditions: string[] = [];
-  const params: unknown[] = [];
+  try {
+    // Build WHERE clauses with parameterized bindings
+    const conditions: string[] = [];
+    const params: unknown[] = [];
 
-  if (category && category !== 'All') {
-    conditions.push('f.category = ?');
-    params.push(category);
+    if (category && category !== 'All') {
+      conditions.push('f.category = ?');
+      params.push(category);
+    }
+
+    if (encoding && encoding !== 'all') {
+      conditions.push('f.encoding = ?');
+      params.push(encoding);
+    }
+
+    if (isFree === 'true') {
+      conditions.push('f.is_free = 1');
+    } else if (isFree === 'false') {
+      conditions.push('f.is_free = 0');
+    }
+
+    if (search) {
+      conditions.push('f.name LIKE ?');
+      params.push(`%${search}%`);
+    }
+
+    if (featured === 'true') {
+      conditions.push('f.designer IS NOT NULL');
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Whitelisted sort order
+    let orderClause: string;
+    switch (sort) {
+      case 'name': orderClause = 'ORDER BY f.name ASC'; break;
+      case 'year': orderClause = 'ORDER BY f.year DESC NULLS LAST, f.name ASC'; break;
+      case 'price': orderClause = 'ORDER BY f.price ASC, f.name ASC'; break;
+      case 'popularity':
+      default: orderClause = 'ORDER BY f.downloads DESC NULLS LAST, f.name ASC'; break;
+    }
+
+    // Count total records
+    const countQuery = `SELECT COUNT(*) as total FROM fonts f ${whereClause}`;
+    const countResult = await db.prepare(countQuery).bind(...params).first<{ total: number }>();
+    const total = countResult?.total || 0;
+
+    // Fetch paginated slice
+    const offset = (page - 1) * pageSize;
+    const dataQuery = `SELECT f.* FROM fonts f ${whereClause} ${orderClause} LIMIT ? OFFSET ?`;
+    const dataResult = await db.prepare(dataQuery).bind(...params, pageSize, offset).all<FontRow>();
+
+    const fonts = (dataResult.results || []).map(row => toFontResponse(row));
+
+    const response: PaginatedResponse<FontResponse> = {
+      data: fonts,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+
+    return c.json(response, 200, {
+      'Cache-Control': 'public, max-age=300, s-maxage=600',
+    });
+  } catch (err: any) {
+    console.error('[db-error] Failed to query fonts catalog:', err?.message);
+    return c.json({ error: 'Failed to retrieve font catalog' }, 500);
   }
-
-  if (encoding && encoding !== 'all') {
-    conditions.push('f.encoding = ?');
-    params.push(encoding);
-  }
-
-  if (isFree === 'true') {
-    conditions.push('f.is_free = 1');
-  } else if (isFree === 'false') {
-    conditions.push('f.is_free = 0');
-  }
-
-  if (search) {
-    conditions.push('f.name LIKE ?');
-    params.push(`%${search}%`);
-  }
-
-  if (featured === 'true') {
-    conditions.push('f.designer IS NOT NULL');
-  }
-
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-  // Sort
-  let orderClause: string;
-  switch (sort) {
-    case 'name': orderClause = 'ORDER BY f.name ASC'; break;
-    case 'year': orderClause = 'ORDER BY f.year DESC NULLS LAST, f.name ASC'; break;
-    case 'price': orderClause = 'ORDER BY f.price ASC, f.name ASC'; break;
-    case 'popularity':
-    default: orderClause = 'ORDER BY f.downloads DESC NULLS LAST, f.name ASC'; break;
-  }
-
-  // Count total
-  const countQuery = `SELECT COUNT(*) as total FROM fonts f ${whereClause}`;
-  const countResult = await db.prepare(countQuery).bind(...params).first<{ total: number }>();
-  const total = countResult?.total || 0;
-
-  // Fetch page
-  const offset = (page - 1) * pageSize;
-  const dataQuery = `SELECT f.* FROM fonts f ${whereClause} ${orderClause} LIMIT ? OFFSET ?`;
-  const dataResult = await db.prepare(dataQuery).bind(...params, pageSize, offset).all<FontRow>();
-
-  const fonts = (dataResult.results || []).map(row => toFontResponse(row));
-
-  const response: PaginatedResponse<FontResponse> = {
-    data: fonts,
-    total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
-  };
-
-  return c.json(response, 200, {
-    'Cache-Control': 'public, max-age=300, s-maxage=600',
-  });
 });
 
 /**
@@ -153,21 +169,30 @@ fontsRouter.get('/fonts/:id', async (c) => {
   const db = c.env.DB;
   const fontId = c.req.param('id');
 
-  const font = await db.prepare('SELECT * FROM fonts WHERE id = ?').bind(fontId).first<FontRow>();
-  if (!font) {
-    return c.json({ error: 'Font not found' }, 404);
+  if (!fontId || typeof fontId !== 'string') {
+    return c.json({ error: 'Invalid font ID' }, 400);
   }
 
-  const stylesResult = await db.prepare(
-    'SELECT * FROM font_styles WHERE font_id = ? ORDER BY weight ASC'
-  ).bind(fontId).all<FontStyleRow>();
+  try {
+    const font = await db.prepare('SELECT * FROM fonts WHERE id = ?').bind(fontId).first<FontRow>();
+    if (!font) {
+      return c.json({ error: 'Font not found' }, 404);
+    }
 
-  const styles = stylesResult.results || [];
-  const response = toFontResponse(font, styles);
+    const stylesResult = await db.prepare(
+      'SELECT * FROM font_styles WHERE font_id = ? ORDER BY weight ASC'
+    ).bind(fontId).all<FontStyleRow>();
 
-  return c.json(response, 200, {
-    'Cache-Control': 'public, max-age=3600, s-maxage=86400',
-  });
+    const styles = stylesResult.results || [];
+    const response = toFontResponse(font, styles);
+
+    return c.json(response, 200, {
+      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+    });
+  } catch (err: any) {
+    console.error(`[db-error] Failed to fetch font ${fontId}:`, err?.message);
+    return c.json({ error: 'Failed to retrieve font details' }, 500);
+  }
 });
 
 /**
@@ -177,11 +202,16 @@ fontsRouter.get('/fonts/:id', async (c) => {
 fontsRouter.get('/categories', async (c) => {
   const db = c.env.DB;
 
-  const result = await db.prepare(
-    'SELECT category, COUNT(*) as count FROM fonts GROUP BY category ORDER BY count DESC'
-  ).all<CategoryCount>();
+  try {
+    const result = await db.prepare(
+      'SELECT category, COUNT(*) as count FROM fonts GROUP BY category ORDER BY count DESC'
+    ).all<CategoryCount>();
 
-  return c.json(result.results || [], 200, {
-    'Cache-Control': 'public, max-age=3600',
-  });
+    return c.json(result.results || [], 200, {
+      'Cache-Control': 'public, max-age=3600',
+    });
+  } catch (err: any) {
+    console.error('[db-error] Failed to fetch categories:', err?.message);
+    return c.json({ error: 'Failed to retrieve categories' }, 500);
+  }
 });

@@ -14,7 +14,8 @@
     "db:seed:local": "wrangler d1 execute akshar-fonts-db --local --file=./worker/src/db/seed.sql",
     "db:migrate": "wrangler d1 execute akshar-fonts-db --file=./worker/src/db/schema.sql",
     "db:seed": "wrangler d1 execute akshar-fonts-db --file=./worker/src/db/seed.sql",
-    "r2:upload": "node worker/scripts/upload-fonts-to-r2.cjs",
+    "test": "node --test tests/**/*.test.js",
+    "neon:upload": "node worker/scripts/upload-fonts-to-neon.cjs",
     "generate:seed": "node worker/scripts/generate-seed.cjs",
     "deploy:worker": "wrangler deploy",
     "deploy:pages": "vite build && wrangler pages deploy dist --project-name=akshar"

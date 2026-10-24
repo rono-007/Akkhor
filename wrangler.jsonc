@@ -14,13 +14,7 @@
     }
   ],
 
-  // R2 Storage binding (uncomment once R2 or blob storage is active)
-  // "r2_buckets": [
-  //   {
-  //     "binding": "FONTS_BUCKET",
-  //     "bucket_name": "akshar-fonts"
-  //   }
-  // ],
+  // Font Binary Storage: Connected via Neon S3 Object Storage API (see vars below)
 
   // Environment variables (securely kept in Worker backend)
   "vars": {

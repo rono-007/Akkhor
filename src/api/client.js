@@ -1,59 +1,109 @@
 /**
  * AKSHAR — API Client
  * 
- * Provides functions to fetch font data from the Hono backend on Cloudflare Workers.
- * Falls back to local static data in development when the API is unavailable.
+ * Provides robust functions to fetch font data from the backend.
+ * Validates schemas, handles pagination errors (HTTP 500, network errors),
+ * and safely falls back to local static catalog on any failure.
  */
 
-// API base URL — in production this routes to the Worker,
-// in development it proxies through Vite to the local Wrangler dev server
 const API_BASE = '/api';
 
 /**
- * Fetch all fonts (unpaginated — loads everything for client-side filtering).
- * The current UI does client-side search, sort, and filter across all 719 fonts,
- * so we fetch them all in one request and let the existing useMemo handle the rest.
- * 
- * This approach keeps the frontend logic unchanged while moving the data source
- * from bundled JSON to the D1 database.
+ * Validates a single font record against expected schema.
+ * Rejects records with missing core properties to prevent UI crashes.
  */
-export async function fetchAllFonts() {
+export function isValidFont(font) {
+  if (!font || typeof font !== 'object') return false;
+  if (typeof font.id !== 'string' || !font.id.trim()) return false;
+  if (typeof font.name !== 'string' || !font.name.trim()) return false;
+  if (typeof font.file !== 'string' || !font.file.trim()) return false;
+  if (typeof font.category !== 'string' || !font.category.trim()) return false;
+  return true;
+}
+
+/**
+ * Validates and sanitizes an array of font records.
+ */
+export function sanitizeFontList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter(isValidFont);
+}
+
+/**
+ * Fetch all fonts with robust pagination handling and schema validation.
+ * 
+ * Resilience features:
+ * - Checks HTTP status codes for every single page request.
+ * - Validates JSON structure and schema of every page response.
+ * - Prevents undefined/malformed elements from polluting the catalogue.
+ * - Catches HTTP 500 responses, network timeouts, and JSON parsing errors.
+ * - Gracefully falls back to local static data if the API fails.
+ */
+export async function fetchAllFonts(fetchFn = fetch) {
   try {
-    const response = await fetch(`${API_BASE}/fonts?pageSize=100&page=1`);
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-    
+    const response = await fetchFn(`${API_BASE}/fonts?pageSize=100&page=1`);
+    if (!response || !response.ok) {
+      throw new Error(`API error on page 1: HTTP ${response ? response.status : 'No response'}`);
+    }
+
     const firstPage = await response.json();
-    const totalPages = firstPage.totalPages;
-    
-    // If all fonts fit in one page, return immediately
-    if (totalPages <= 1) return firstPage.data;
-    
-    // Fetch remaining pages in parallel
+    if (!firstPage || !Array.isArray(firstPage.data)) {
+      throw new Error('Malformed API response on page 1: missing data array');
+    }
+
+    const validFirstPageFonts = sanitizeFontList(firstPage.data);
+    const totalPages = Number(firstPage.totalPages);
+
+    // If totalPages is invalid or 1, return the validated first page
+    if (!Number.isInteger(totalPages) || totalPages <= 1) {
+      return validFirstPageFonts.length > 0 ? validFirstPageFonts : null;
+    }
+
+    // Cap totalPages to prevent runaway loops (max 50 pages = 5000 fonts)
+    const safeTotalPages = Math.min(totalPages, 50);
+
+    // Fetch remaining pages in parallel with individual error inspection
     const pagePromises = [];
-    for (let p = 2; p <= totalPages; p++) {
+    for (let p = 2; p <= safeTotalPages; p++) {
       pagePromises.push(
-        fetch(`${API_BASE}/fonts?pageSize=100&page=${p}`)
-          .then(r => r.json())
-          .then(d => d.data)
+        fetchFn(`${API_BASE}/fonts?pageSize=100&page=${p}`)
+          .then(async (res) => {
+            if (!res || !res.ok) {
+              throw new Error(`Page ${p} failed with HTTP ${res ? res.status : 'No response'}`);
+            }
+            const json = await res.json();
+            if (!json || !Array.isArray(json.data)) {
+              throw new Error(`Page ${p} returned malformed data schema`);
+            }
+            return sanitizeFontList(json.data);
+          })
       );
     }
-    
+
     const remainingPages = await Promise.all(pagePromises);
-    return [firstPage.data, ...remainingPages].flat();
+    const allFonts = [validFirstPageFonts, ...remainingPages].flat().filter(isValidFont);
+
+    if (allFonts.length === 0) {
+      throw new Error('Catalogue contains 0 valid font records after sanitization');
+    }
+
+    return allFonts;
   } catch (err) {
     console.warn('[akshar-api] Failed to fetch fonts from API, using local fallback:', err.message);
-    return null; // Signal to use local fallback
+    return null; // Signals caller to use local fallback (EXTENDED_FONTS)
   }
 }
 
 /**
  * Fetch a single font with all its styles.
  */
-export async function fetchFontById(fontId) {
+export async function fetchFontById(fontId, fetchFn = fetch) {
+  if (!fontId || typeof fontId !== 'string') return null;
   try {
-    const response = await fetch(`${API_BASE}/fonts/${fontId}`);
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-    return await response.json();
+    const response = await fetchFn(`${API_BASE}/fonts/${encodeURIComponent(fontId)}`);
+    if (!response || !response.ok) throw new Error(`API error: ${response ? response.status : 'No response'}`);
+    const data = await response.json();
+    return isValidFont(data) ? data : null;
   } catch (err) {
     console.warn(`[akshar-api] Failed to fetch font ${fontId}:`, err.message);
     return null;
@@ -63,11 +113,13 @@ export async function fetchFontById(fontId) {
 /**
  * Fetch category list with counts.
  */
-export async function fetchCategories() {
+export async function fetchCategories(fetchFn = fetch) {
   try {
-    const response = await fetch(`${API_BASE}/categories`);
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-    return await response.json();
+    const response = await fetchFn(`${API_BASE}/categories`);
+    if (!response || !response.ok) throw new Error(`API error: ${response ? response.status : 'No response'}`);
+    const data = await response.json();
+    if (!Array.isArray(data)) return null;
+    return data.filter(c => c && typeof c.category === 'string' && typeof c.count === 'number');
   } catch (err) {
     console.warn('[akshar-api] Failed to fetch categories:', err.message);
     return null;
@@ -76,37 +128,44 @@ export async function fetchCategories() {
 
 /**
  * Get the preview URL for a font (for @font-face loading).
- * When running with the API, fonts are served via the Worker from R2.
- * When running locally in dev without the Worker, falls back to /fonts/ path.
  */
 export function getFontPreviewUrl(fontId, styleName) {
-  if (styleName) {
-    return `${API_BASE}/fonts/${fontId}/preview?style=${encodeURIComponent(styleName)}`;
+  if (!fontId || typeof fontId !== 'string') return '';
+  const safeId = encodeURIComponent(fontId.trim());
+  if (styleName && typeof styleName === 'string') {
+    return `${API_BASE}/fonts/${safeId}/preview?style=${encodeURIComponent(styleName.trim())}`;
   }
-  return `${API_BASE}/fonts/${fontId}/preview`;
+  return `${API_BASE}/fonts/${safeId}/preview`;
 }
 
 /**
  * Get the download URL for a font.
  */
-export function getFontDownloadUrl(fontId, styleName) {
-  if (styleName) {
-    return `${API_BASE}/fonts/${fontId}/download?style=${encodeURIComponent(styleName)}`;
+export function getFontDownloadUrl(fontId, styleName, licenseToken) {
+  if (!fontId || typeof fontId !== 'string') return '';
+  const safeId = encodeURIComponent(fontId.trim());
+  const params = new URLSearchParams();
+  if (styleName && typeof styleName === 'string') {
+    params.set('style', styleName.trim());
   }
-  return `${API_BASE}/fonts/${fontId}/download`;
+  if (licenseToken && typeof licenseToken === 'string') {
+    params.set('license', licenseToken.trim());
+  }
+  const queryString = params.toString();
+  return queryString ? `${API_BASE}/fonts/${safeId}/download?${queryString}` : `${API_BASE}/fonts/${safeId}/download`;
 }
 
 /**
  * Health check — verifies the API is reachable.
  */
-export async function checkApiHealth() {
+export async function checkApiHealth(fetchFn = fetch) {
   try {
-    const response = await fetch(`${API_BASE}/health`, { 
-      signal: AbortSignal.timeout(3000) 
+    const response = await fetchFn(`${API_BASE}/health`, { 
+      signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined 
     });
-    if (!response.ok) return false;
+    if (!response || !response.ok) return false;
     const data = await response.json();
-    return data.status === 'ok';
+    return data && data.status === 'ok';
   } catch {
     return false;
   }
