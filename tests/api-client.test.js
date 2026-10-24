@@ -18,7 +18,8 @@ describe('AKSHAR API Client & Pagination Resilience', () => {
       id: 'font-1',
       name: 'Test Font',
       file: '/api/fonts/font-1/preview',
-      category: 'Serif'
+      category: 'Serif',
+      isFree: true
     }), true);
 
     // Missing core fields
@@ -27,16 +28,16 @@ describe('AKSHAR API Client & Pagination Resilience', () => {
     assert.strictEqual(isValidFont({}), false);
     assert.strictEqual(isValidFont({ id: 'font-1' }), false); // missing name, file, category
     assert.strictEqual(isValidFont({ id: 'font-1', name: 'Test', file: '' }), false); // empty file
-    assert.strictEqual(isValidFont({ id: '   ', name: 'Test', file: '/f', category: 'Serif' }), false); // whitespace ID
+    assert.strictEqual(isValidFont({ id: '   ', name: 'Test', file: '/f', category: 'Serif', isFree: true }), false); // whitespace ID
   });
 
   test('sanitizeFontList filters out corrupt or undefined items', () => {
     const mixedList = [
-      { id: 'f1', name: 'Font 1', file: '/api/fonts/f1/preview', category: 'Bengali' },
+      { id: 'f1', name: 'Font 1', file: '/api/fonts/f1/preview', category: 'Bengali', isFree: true },
       undefined,
       null,
       { broken: true },
-      { id: 'f2', name: 'Font 2', file: '/api/fonts/f2/preview', category: 'Sans Serif' }
+      { id: 'f2', name: 'Font 2', file: '/api/fonts/f2/preview', category: 'Sans Serif', isFree: false }
     ];
 
     const clean = sanitizeFontList(mixedList);
@@ -51,9 +52,10 @@ describe('AKSHAR API Client & Pagination Resilience', () => {
       status: 200,
       json: async () => ({
         data: [
-          { id: 'f1', name: 'Font 1', file: '/api/fonts/f1/preview', category: 'Bengali' }
+          { id: 'f1', name: 'Font 1', file: '/api/fonts/f1/preview', category: 'Bengali', isFree: true }
         ],
         total: 1,
+        pageSize: 100,
         page: 1,
         totalPages: 1
       })
@@ -73,9 +75,10 @@ describe('AKSHAR API Client & Pagination Resilience', () => {
         status: 200,
         json: async () => ({
           data: [
-            { id: `f-p${page}`, name: `Font Page ${page}`, file: `/api/fonts/f-p${page}/preview`, category: 'Bengali' }
+            { id: `f-p${page}`, name: `Font Page ${page}`, file: `/api/fonts/f-p${page}/preview`, category: 'Bengali', isFree: true }
           ],
           total: 2,
+          pageSize: 100,
           page,
           totalPages: 2
         })
@@ -113,8 +116,9 @@ describe('AKSHAR API Client & Pagination Resilience', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          data: [{ id: 'f1', name: 'Font 1', file: '/f1', category: 'Bengali' }],
+          data: [{ id: 'f1', name: 'Font 1', file: '/f1', category: 'Bengali', isFree: true }],
           total: 200,
+          pageSize: 100,
           page: 1,
           totalPages: 2
         })
@@ -123,6 +127,23 @@ describe('AKSHAR API Client & Pagination Resilience', () => {
 
     const result = await fetchAllFonts(mockFetch);
     // Must return null instead of throwing or returning partial corrupt array with undefined items
+    assert.strictEqual(result, null);
+  });
+
+  test('REGRESSION: fetchAllFonts rejects invalid or non-integer pagination schema', async () => {
+    const mockFetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [{ id: 'f1', name: 'Font 1', file: '/f1', category: 'Bengali', isFree: true }],
+        total: 'invalid-total',
+        pageSize: 100,
+        page: 1,
+        totalPages: NaN
+      })
+    });
+
+    const result = await fetchAllFonts(mockFetch);
     assert.strictEqual(result, null);
   });
 
@@ -146,10 +167,15 @@ describe('AKSHAR API Client & Pagination Resilience', () => {
     assert.strictEqual(result, null);
   });
 
-  test('getFontPreviewUrl and getFontDownloadUrl format safe URLs', () => {
+  test('getFontPreviewUrl and getFontDownloadUrl prevent double-encoding', () => {
     assert.strictEqual(getFontPreviewUrl('kalpurush'), '/api/fonts/kalpurush/preview');
     assert.strictEqual(
       getFontPreviewUrl('abirvab', 'Bold Italic'), 
+      '/api/fonts/abirvab/preview?style=Bold%20Italic'
+    );
+    // Already encoded style name should NOT be double-encoded to %2520
+    assert.strictEqual(
+      getFontPreviewUrl('abirvab', 'Bold%20Italic'), 
       '/api/fonts/abirvab/preview?style=Bold%20Italic'
     );
     assert.strictEqual(

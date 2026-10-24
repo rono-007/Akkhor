@@ -46,27 +46,35 @@ describe('AKSHAR Security & Storage Guardrails', () => {
     assert.strictEqual(sanitizeFileName(''), 'font.ttf');
   });
 
-  test('Commercial font license gating rules', () => {
-    function checkDownloadAllowed(font, token) {
+  test('Commercial font license gating rules — strictly rejects pseudo-token bypass', () => {
+    function evaluateDownloadPolicy(font, token) {
       if (font.is_free === 1) return { allowed: true };
-      if (!token || typeof token !== 'string' || !token.trim()) {
-        return { allowed: false, status: 403, error: 'License required' };
-      }
-      return { allowed: true };
+      // Commercial font: reject arbitrary token strings without trusted purchase verification system
+      return { 
+        allowed: false, 
+        status: 403, 
+        error: 'Commercial license required',
+        message: 'Automated self-serve purchase verification is not yet integrated. Direct download of proprietary binaries is restricted.'
+      };
     }
 
     // Free font without token -> allowed
     const freeFont = { id: 'noto-sans-bengali', name: 'Noto Sans', is_free: 1 };
-    assert.strictEqual(checkDownloadAllowed(freeFont, null).allowed, true);
+    assert.strictEqual(evaluateDownloadPolicy(freeFont, null).allowed, true);
 
     // Paid font without token -> blocked with 403
     const paidFont = { id: 'sutonny-mj', name: 'Sutonny MJ', is_free: 0, price: 40 };
-    const blockedRes = checkDownloadAllowed(paidFont, null);
+    const blockedRes = evaluateDownloadPolicy(paidFont, null);
     assert.strictEqual(blockedRes.allowed, false);
     assert.strictEqual(blockedRes.status, 403);
 
-    // Paid font with license token -> allowed
-    const authorizedRes = checkDownloadAllowed(paidFont, 'license_abc123');
-    assert.strictEqual(authorizedRes.allowed, true);
+    // Paid font with pseudo token -> strictly BLOCKED with 403 (No pseudo-security bypass)
+    const bypassAttempt1 = evaluateDownloadPolicy(paidFont, 'license_abc123');
+    assert.strictEqual(bypassAttempt1.allowed, false);
+    assert.strictEqual(bypassAttempt1.status, 403);
+
+    const bypassAttempt2 = evaluateDownloadPolicy(paidFont, 'Bearer dummy-token');
+    assert.strictEqual(bypassAttempt2.allowed, false);
+    assert.strictEqual(bypassAttempt2.status, 403);
   });
 });

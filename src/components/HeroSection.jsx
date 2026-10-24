@@ -41,7 +41,7 @@ export default function HeroSection({
       description: 'বসন্তের বাতাসে দোলা লাগা পল্লবের মতোই চঞ্চল এই ফন্টের প্রতিটি রেখা। কবিতাগুচ্ছ ও সাহিত্য পত্রিকার জন্য এক অনন্য উপাদান।',
       sampleLetter: 'ব',
       fontFamily: "'Boshonto', 'Noto Serif Bengali', serif",
-      fontFile: '/fonts/Boshonto.ttf'
+      fontFile: '/api/fonts/boshonto/preview'
     },
     {
       id: 'ekushey-aloucik',
@@ -65,7 +65,7 @@ export default function HeroSection({
       description: 'বাংলা প্রকাশনা জগতের সবচেয়ে জনপ্রিয় ও নির্ভরযোগ্য সেরিফ ফন্ট, যা দীর্ঘ পঠনে চোখকে আরাম ও তৃপ্তি দেয়।',
       sampleLetter: 'ক',
       fontFamily: "'Kalpurush', 'Noto Serif Bengali', serif",
-      fontFile: '/fonts/Kalpurush.ttf'
+      fontFile: '/api/fonts/kalpurush/preview'
     },
     {
       id: 'solaiman-lipi',
@@ -77,7 +77,7 @@ export default function HeroSection({
       description: 'কম্পিউটার স্ক্রিন ও মোবাইল ডিভাইসে মসৃণ ও স্পষ্ট প্রদর্শনের জন্য নির্মিত এক অগ্রদূত টাইপফেস।',
       sampleLetter: 'স',
       fontFamily: "'SolaimanLipi', 'Noto Sans Bengali', sans-serif",
-      fontFile: '/fonts/Solaiman Lipi.ttf'
+      fontFile: '/api/fonts/solaiman-lipi/preview'
     }
   ];
 

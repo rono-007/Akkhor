@@ -297,10 +297,25 @@ const ANSI_NAME_PATTERNS = [
 ];
 
 /**
- * Checks whether a font is ANSI / Bijoy encoded
+ * Checks whether a font (or a specific selected style variant) is ANSI / Bijoy encoded.
+ * Checks selectedStyle metadata first (e.g. Charukola Ansi vs Charukola Unicode cuts),
+ * falling back to family-level encoding properties.
  */
-export function isAnsiFont(font) {
+export function isAnsiFont(font, selectedStyle) {
   if (!font) return false;
+
+  // 1. Check selected style variant first if provided
+  if (selectedStyle && typeof selectedStyle === 'object') {
+    if (selectedStyle.encoding === 'ansi' || selectedStyle.isAnsi === true) return true;
+    if (selectedStyle.encoding === 'unicode' || selectedStyle.isAnsi === false) return false;
+
+    const styleName = selectedStyle.name || selectedStyle.fileName || '';
+    const styleFile = selectedStyle.file || '';
+    if (/ansi/i.test(styleName) || /ansi/i.test(styleFile)) return true;
+    if (/unicode/i.test(styleName) || /unicode/i.test(styleFile)) return false;
+  }
+
+  // 2. Family-level encoding properties
   if (font.encoding === 'ansi' || font.isAnsi === true) return true;
   if (font.encoding === 'unicode') return false;
 

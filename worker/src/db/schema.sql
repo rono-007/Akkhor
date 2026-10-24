@@ -1,7 +1,9 @@
--- AKSHAR (অক্ষর) — Cloudflare D1 Database Schema
--- Font metadata and licensing for 719+ Bengali typefaces
+-- AKSHAR (অক্ষর) — Local Test Fixture Reset Script
+-- CAUTION: THIS IS A DESTRUCTIVE RESET SCRIPT INTENDED ONLY FOR LOCAL TESTS AND FIXTURES.
+-- NEVER RUN THIS SCRIPT ON PRODUCTION D1.
+-- For production database updates, use versioned non-destructive migrations in worker/migrations/.
 
--- Drop existing tables if re-migrating
+-- Drop existing tables for fresh local test harness
 DROP TABLE IF EXISTS font_styles;
 DROP TABLE IF EXISTS fonts;
 

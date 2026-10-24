@@ -70,12 +70,14 @@ function toFontResponse(row: FontRow, styles?: FontStyleRow[]): FontResponse {
 fontsRouter.get('/fonts', async (c) => {
   const db = c.env.DB;
 
-  // Strict integer sanitization (prevents NaN / negative offsets)
-  const rawPage = parseInt(c.req.query('page') || '1', 10);
-  const page = Number.isInteger(rawPage) && rawPage >= 1 ? Math.min(rawPage, 1000) : 1;
+  // Strict finite safe integer sanitization (prevents NaN, Infinity, floats, negative offsets)
+  const rawPageStr = c.req.query('page') || '1';
+  const rawPage = Number(rawPageStr);
+  const page = (Number.isSafeInteger(rawPage) && rawPage >= 1) ? Math.min(rawPage, 1000) : 1;
 
-  const rawPageSize = parseInt(c.req.query('pageSize') || '24', 10);
-  const pageSize = Number.isInteger(rawPageSize) && rawPageSize >= 1 ? Math.min(rawPageSize, 100) : 24;
+  const rawSizeStr = c.req.query('pageSize') || '24';
+  const rawSize = Number(rawSizeStr);
+  const pageSize = (Number.isSafeInteger(rawSize) && rawSize >= 1) ? Math.min(rawSize, 100) : 24;
 
   const category = c.req.query('category');
   const encoding = c.req.query('encoding');
@@ -87,7 +89,10 @@ fontsRouter.get('/fonts', async (c) => {
     ? rawSearch.trim() 
     : (rawSearch && rawSearch.length > 100 ? rawSearch.slice(0, 100).trim() : null);
 
-  const sort = c.req.query('sort') || 'popularity';
+  // Static sort allowlist
+  const rawSort = c.req.query('sort') || 'popularity';
+  const ALLOWED_SORTS = new Set(['popularity', 'name', 'year', 'price']);
+  const sort = ALLOWED_SORTS.has(rawSort) ? rawSort : 'popularity';
   const featured = c.req.query('featured');
 
   try {

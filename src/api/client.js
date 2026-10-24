@@ -6,7 +6,13 @@
  * and safely falls back to local static catalog on any failure.
  */
 
-const API_BASE = '/api';
+export const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
+  ? import.meta.env.VITE_API_BASE_URL
+  : (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? '/api'
+    : (typeof window !== 'undefined'
+      ? 'https://akshar-api.officialronojoy03.workers.dev/api'
+      : '/api'));
 
 /**
  * Validates a single font record against expected schema.
@@ -18,6 +24,7 @@ export function isValidFont(font) {
   if (typeof font.name !== 'string' || !font.name.trim()) return false;
   if (typeof font.file !== 'string' || !font.file.trim()) return false;
   if (typeof font.category !== 'string' || !font.category.trim()) return false;
+  if (typeof font.isFree !== 'boolean' && font.isFree !== 0 && font.isFree !== 1) return false;
   return true;
 }
 
@@ -34,10 +41,10 @@ export function sanitizeFontList(list) {
  * 
  * Resilience features:
  * - Checks HTTP status codes for every single page request.
- * - Validates JSON structure and schema of every page response.
+ * - Validates JSON structure, arrays, and pagination integers (page, pageSize, total, totalPages).
  * - Prevents undefined/malformed elements from polluting the catalogue.
- * - Catches HTTP 500 responses, network timeouts, and JSON parsing errors.
- * - Gracefully falls back to local static data if the API fails.
+ * - Rejects incomplete loads if any required page fails, immediately triggering local fallback.
+ * - Gracefully falls back to local verified catalog on any failure.
  */
 export async function fetchAllFonts(fetchFn = fetch) {
   try {
@@ -47,16 +54,25 @@ export async function fetchAllFonts(fetchFn = fetch) {
     }
 
     const firstPage = await response.json();
-    if (!firstPage || !Array.isArray(firstPage.data)) {
+    if (!firstPage || typeof firstPage !== 'object' || !Array.isArray(firstPage.data)) {
       throw new Error('Malformed API response on page 1: missing data array');
     }
 
-    const validFirstPageFonts = sanitizeFontList(firstPage.data);
+    // Validate pagination integers
+    const total = Number(firstPage.total);
+    const pageSize = Number(firstPage.pageSize);
     const totalPages = Number(firstPage.totalPages);
+    if (!Number.isFinite(total) || total < 0 || !Number.isInteger(pageSize) || pageSize < 1 || !Number.isInteger(totalPages) || totalPages < 1) {
+      throw new Error('Invalid pagination fields on page 1');
+    }
 
-    // If totalPages is invalid or 1, return the validated first page
-    if (!Number.isInteger(totalPages) || totalPages <= 1) {
-      return validFirstPageFonts.length > 0 ? validFirstPageFonts : null;
+    const validFirstPageFonts = sanitizeFontList(firstPage.data);
+    if (validFirstPageFonts.length === 0 && total > 0) {
+      throw new Error('Zero valid fonts in page 1 response');
+    }
+
+    if (totalPages <= 1) {
+      return validFirstPageFonts;
     }
 
     // Cap totalPages to prevent runaway loops (max 50 pages = 5000 fonts)
@@ -128,25 +144,37 @@ export async function fetchCategories(fetchFn = fetch) {
 
 /**
  * Get the preview URL for a font (for @font-face loading).
+ * Safely decodes existing encodings first to prevent double-encoded query parameters.
  */
 export function getFontPreviewUrl(fontId, styleName) {
   if (!fontId || typeof fontId !== 'string') return '';
-  const safeId = encodeURIComponent(fontId.trim());
+  let rawId = fontId.trim();
+  try { if (rawId.includes('%')) rawId = decodeURIComponent(rawId); } catch {}
+  const safeId = encodeURIComponent(rawId);
+
   if (styleName && typeof styleName === 'string') {
-    return `${API_BASE}/fonts/${safeId}/preview?style=${encodeURIComponent(styleName.trim())}`;
+    let rawStyle = styleName.trim();
+    try { if (rawStyle.includes('%')) rawStyle = decodeURIComponent(rawStyle); } catch {}
+    return `${API_BASE}/fonts/${safeId}/preview?style=${encodeURIComponent(rawStyle)}`;
   }
   return `${API_BASE}/fonts/${safeId}/preview`;
 }
 
 /**
  * Get the download URL for a font.
+ * Safely decodes existing encodings first to prevent double-encoding.
  */
 export function getFontDownloadUrl(fontId, styleName, licenseToken) {
   if (!fontId || typeof fontId !== 'string') return '';
-  const safeId = encodeURIComponent(fontId.trim());
+  let rawId = fontId.trim();
+  try { if (rawId.includes('%')) rawId = decodeURIComponent(rawId); } catch {}
+  const safeId = encodeURIComponent(rawId);
+
   const params = new URLSearchParams();
   if (styleName && typeof styleName === 'string') {
-    params.set('style', styleName.trim());
+    let rawStyle = styleName.trim();
+    try { if (rawStyle.includes('%')) rawStyle = decodeURIComponent(rawStyle); } catch {}
+    params.set('style', rawStyle);
   }
   if (licenseToken && typeof licenseToken === 'string') {
     params.set('license', licenseToken.trim());

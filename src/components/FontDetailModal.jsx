@@ -5,22 +5,18 @@ import {
   Type, 
   BookOpen, 
   Sliders, 
-  ShoppingBag, 
   Download, 
   Heart, 
   Columns, 
-  Check, 
-  Copy,
-  Sparkles,
-  Info,
-  Maximize2
+  Sparkles
 } from 'lucide-react';
-import { GLYPH_SETS, LICENSE_TIERS, ensureFontFaceLoaded, FEATURED_FONTS } from '../data/fontsData';
+import { GLYPH_SETS, ensureFontFaceLoaded, FEATURED_FONTS } from '../data/fontsData';
 import { isAnsiFont, unicodeToBijoy } from '../utils/banglaConverter';
+import { fetchFontById } from '../api/client';
 import RealWorldMockups from './RealWorldMockups';
 
 export default function FontDetailModal({
-  font,
+  font: initialFont,
   onClose,
   onAddToCart,
   isInCart,
@@ -28,21 +24,48 @@ export default function FontDetailModal({
   onToggleFavorite,
   onOpenPlayground
 }) {
+  const [font, setFont] = useState(initialFont);
   const [activeTab, setActiveTab] = useState('waterfall');
   const [specimenText, setSpecimenText] = useState(
-    font.sampleHeadline || 'শব্দশিল্প ও নান্দনিক বর্ণমালার মেলবন্ধন'
+    initialFont?.sampleHeadline || 'শব্দশিল্প ও নান্দনিক বর্ণমালার মেলবন্ধন'
   );
   const [fontSize, setFontSize] = useState(48);
   const [letterSpacing, setLetterSpacing] = useState(0);
   const [lineHeight, setLineHeight] = useState(1.3);
   const [textAlign, setTextAlign] = useState('left');
   const [selectedWeight, setSelectedWeight] = useState(
-    font.styles?.[0]?.weight || '400'
+    initialFont?.styles?.[0]?.weight || '400'
   );
   const [selectedLicenseTier, setSelectedLicenseTier] = useState('commercial');
   const [copiedGlyph, setCopiedGlyph] = useState(null);
 
-  const isAnsi = isAnsiFont(font);
+  // Sync state if initialFont prop changes
+  useEffect(() => {
+    setFont(initialFont);
+    if (initialFont?.sampleHeadline) {
+      setSpecimenText(initialFont.sampleHeadline);
+    }
+  }, [initialFont]);
+
+  // On-demand fetch of full font details and styles (avoids 1 request per catalog card)
+  useEffect(() => {
+    let isMounted = true;
+    if (initialFont?.id && (!initialFont.styles || initialFont.styles.length <= 1)) {
+      fetchFontById(initialFont.id).then((fullData) => {
+        if (isMounted && fullData && Array.isArray(fullData.styles) && fullData.styles.length > 0) {
+          setFont(prev => ({ ...prev, ...fullData }));
+          setSelectedWeight(prevWeight => {
+            const hasWeight = fullData.styles.some(s => s.weight === prevWeight);
+            return hasWeight ? prevWeight : (fullData.styles[0]?.weight || '400');
+          });
+        }
+      });
+    }
+    return () => { isMounted = false; };
+  }, [initialFont?.id]);
+
+  const currentStyle = font.styles?.find(s => s.weight === selectedWeight) || font.styles?.[0];
+  const isAnsi = isAnsiFont(font, currentStyle);
   const renderedSpecimen = isAnsi ? unicodeToBijoy(specimenText) : specimenText;
 
   // Suggested paired font

@@ -22,7 +22,10 @@ import {
 import { isAnsiFont } from './utils/banglaConverter';
 
 import {
-  Sparkles
+  Sparkles,
+  Search,
+  List,
+  Grid
 } from 'lucide-react';
 
 export default function App() {

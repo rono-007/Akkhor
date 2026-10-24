@@ -128,17 +128,18 @@ downloadRouter.get('/fonts/:id/download', async (c) => {
   }
 
   // Enforce licensing and purchase authorization for commercial fonts
+  // CodeRabbit Specification: Do not treat an arbitrary token's presence as proof of entitlement.
+  // Since a trusted external payment/purchase verification system (e.g. Stripe webhook) is not yet integrated,
+  // commercial font downloads must be strictly blocked to prevent unauthorized distribution of proprietary binaries.
   if (font.is_free !== 1) {
-    const token = c.req.query('license') || c.req.header('X-License-Token') || c.req.header('Authorization');
-    if (!token) {
-      return c.json({
-        error: 'Forbidden: License token or purchase authorization required for this commercial font',
-        fontId: font.id,
-        fontName: font.name,
-        price: font.price,
-        isFree: false
-      }, 403);
-    }
+    return c.json({
+      error: 'Commercial license required',
+      message: 'Automated self-serve purchase verification is not yet integrated. Direct download of proprietary binaries is restricted.',
+      fontId: font.id,
+      fontName: font.name,
+      price: font.price,
+      isFree: false
+    }, 403);
   }
 
   let storageKey = font.r2_key;

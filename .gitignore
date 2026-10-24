@@ -26,3 +26,7 @@ dist-ssr
 # Cloudflare Wrangler
 .wrangler
 .dev.vars
+
+# Protected font binary storage (local archive)
+storage/
+

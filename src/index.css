@@ -1,50 +1,12 @@
 /* ==========================================================================
-   PRIMARY HERO & ARCHIVE WEBFONTS (Boshonto & Ekushey Aloucik)
+   PRIMARY HERO & ARCHIVE WEBFONTS (Dynamic & Public OFL Fonts)
    ========================================================================== */
-@font-face {
-  font-family: 'Boshonto';
-  src: url('/fonts/Boshonto.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Boshonto';
-  src: url('/fonts/Boshonto Light.ttf') format('truetype');
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Boshonto';
-  src: url('/fonts/Boshonto Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
 
 @font-face {
   font-family: 'Ekushey Aloucik';
   src: url('/fonts/ekushey/Ekushey%20Aloucik.ttf') format('truetype'),
        url('/fonts/ekushey/Ekushey Aloucik.ttf') format('truetype');
   font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Siyam Rupali';
-  src: url('/fonts/Siyam%20Rupali.ttf') format('truetype'),
-       url('/fonts/Siyam Rupali.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Kalpurush';
-  src: url('/fonts/kalpurush.ttf') format('truetype');
-  font-weight: 400 700;
   font-style: normal;
   font-display: swap;
 }
@@ -65,37 +27,9 @@
 }
 
 @font-face {
-  font-family: 'Charukola';
-  src: url('/fonts/charukola/Charukola Unicode-Bold.ttf') format('truetype'),
-       url('/fonts/charukola/Charukola Unicode-Regular.ttf') format('truetype');
-  font-weight: 400 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
   font-family: 'Atma';
   src: url('/fonts/Atma Bold.ttf') format('truetype'),
        url('/fonts/Atma.ttf') format('truetype');
-  font-weight: 400 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Akhand Bengali';
-  src: url('/fonts/akhand_bengali/Akhand Bengali Extra Bold.ttf') format('truetype'),
-       url('/fonts/akhand_bengali/Akhand Bengali Black.ttf') format('truetype'),
-       url('/fonts/akhand_bengali/Akhand Bengali.ttf') format('truetype');
-  font-weight: 700 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'SolaimanLipi';
-  src: url('/fonts/Solaiman Lipi Bold.ttf') format('truetype'),
-       url('/fonts/Solaiman Lipi.ttf') format('truetype');
   font-weight: 400 700;
   font-style: normal;
   font-display: swap;
