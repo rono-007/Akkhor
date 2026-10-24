@@ -1,0 +1,6 @@
+# Cloudflare Pages Redirects & SPA fallback
+# Proxy API routes to worker if using a separate worker domain:
+# /api/*  https://akshar-api.workers.dev/api/:splat 200
+
+# SPA fallback: route all other paths to index.html
+/*    /index.html   200
