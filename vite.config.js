@@ -7,8 +7,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8787',
+        target: process.env.VITE_API_PROXY_TARGET || 'https://akshar-api.officialronojoy03.workers.dev',
         changeOrigin: true,
+        secure: true,
       },
     },
   },
