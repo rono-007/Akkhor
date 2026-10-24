@@ -1,9 +1,7 @@
 -- AKSHAR D1 Seed Data
 -- Auto-generated from extendedIndex.json + fontsData.js
--- Generated at: 2026-10-24T14:49:55.800Z
+-- Generated at: 2026-10-24T15:52:02.432Z
 -- Total fonts: 719
-
-BEGIN TRANSACTION;
 
 INSERT INTO fonts (id, name, file_name, r2_key, category, size_kb, is_free, price, encoding, is_ansi, designer, foundry, year, license, description, script, rating, downloads, glyph_count, contrast, width, x_height, tags, sample_headline, sample_paragraph, suggested_pairing) VALUES (
   'noto-sans-bengali', 'Noto Sans Bengali', 'NotoSansBengali-VariableFont_wdth,wght.ttf', 'fonts/Noto_Sans_Bengali/NotoSansBengali-VariableFont_wdth,wght.ttf', 'Sans Serif', 0, 1, 0, 'unicode', 0,
@@ -2563,5 +2561,3 @@ INSERT INTO fonts (id, name, file_name, r2_key, category, size_kb, is_free, pric
 INSERT INTO fonts (id, name, file_name, r2_key, category, size_kb, is_free, price, encoding, is_ansi) VALUES (
   'font-718', 'vrinda', 'vrinda.ttf', 'fonts/vrinda.ttf', 'Bengali', 226, 0, 33, 'unicode', 0
 );
-
-COMMIT;

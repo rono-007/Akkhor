@@ -76,8 +76,6 @@ lines.push('-- Auto-generated from extendedIndex.json + fontsData.js');
 lines.push(`-- Generated at: ${new Date().toISOString()}`);
 lines.push('-- Total fonts: ' + extendedFonts.length);
 lines.push('');
-lines.push('BEGIN TRANSACTION;');
-lines.push('');
 
 // Track IDs we've already inserted (to avoid duplicates between extended and featured)
 const insertedIds = new Set();
@@ -137,7 +135,6 @@ extendedFonts.forEach(ef => {
 });
 
 lines.push('');
-lines.push('COMMIT;');
 
 // Write seed.sql
 const outputPath = path.join(__dirname, '../src/db/seed.sql');

@@ -10,17 +10,17 @@
     {
       "binding": "DB",
       "database_name": "akshar-fonts-db",
-      "database_id": "YOUR_D1_DATABASE_ID"
+      "database_id": "f4a24c6b-af9f-44ad-8fee-1c2a0aed2d41"
     }
   ],
 
-  // R2 Storage binding (private bucket for font files)
-  "r2_buckets": [
-    {
-      "binding": "FONTS_BUCKET",
-      "bucket_name": "akshar-fonts"
-    }
-  ],
+  // R2 Storage binding (uncomment once R2 or blob storage is active)
+  // "r2_buckets": [
+  //   {
+  //     "binding": "FONTS_BUCKET",
+  //     "bucket_name": "akshar-fonts"
+  //   }
+  // ],
 
   // Environment variables
   "vars": {

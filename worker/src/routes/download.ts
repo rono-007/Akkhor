@@ -39,7 +39,11 @@ downloadRouter.get('/fonts/:id/preview', async (c) => {
     }
   }
 
-  // Fetch from R2
+  // Fetch from storage
+  if (!bucket) {
+    return c.json({ error: 'Font binary storage not configured' }, 503);
+  }
+
   const object = await bucket.get(r2Key);
   if (!object) {
     return c.json({ error: 'Font file not found in storage' }, 404);
@@ -98,6 +102,10 @@ downloadRouter.get('/fonts/:id/download', async (c) => {
       r2Key = style.r2_key;
       fileName = style.file_name;
     }
+  }
+
+  if (!bucket) {
+    return c.json({ error: 'Font binary storage not configured' }, 503);
   }
 
   const object = await bucket.get(r2Key);

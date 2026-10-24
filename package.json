@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
+    "hono": "^4.13.13",
     "lucide-react": "^1.56.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

@@ -1,7 +1,7 @@
 // Cloudflare Workers environment bindings
 export interface Env {
   DB: D1Database;
-  FONTS_BUCKET: R2Bucket;
+  FONTS_BUCKET?: R2Bucket;
   ENVIRONMENT: string;
   ALLOWED_ORIGINS: string;
 }
