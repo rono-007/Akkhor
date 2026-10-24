@@ -91,12 +91,12 @@ Deploy the API to Cloudflare Workers:
 npm run deploy:worker
 ```
 Once deployed, Wrangler provides your worker URL, e.g.:
-`https://akshar-api.<your-subdomain>.workers.dev`
+`https://akshar-api.officialronojoy03.workers.dev`
 
 You can verify health by visiting:
-`https://akshar-api.<your-subdomain>.workers.dev/api/health`
-or
-`https://akshar-api.<your-subdomain>.workers.dev/api/fonts?pageSize=10`
+- Health Check: `https://akshar-api.officialronojoy03.workers.dev/api/health`
+- Categories & Counts: `https://akshar-api.officialronojoy03.workers.dev/api/categories`
+- Font Catalog: `https://akshar-api.officialronojoy03.workers.dev/api/fonts?pageSize=10`
 
 ---
 
